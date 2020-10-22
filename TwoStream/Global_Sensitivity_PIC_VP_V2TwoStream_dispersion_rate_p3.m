@@ -15,9 +15,8 @@ Xs = zeros(N,Nparams);                    %To save the normalized paramters
 % Set upper and lower bounds for parameters
 % vals =  [k; mu; sigma2]; 
 setvals = [0.5; 0; 1];
-beta = 1;
 
-var = 0.50; % x 100% variation considered 
+var = 0.01; % x 100% variation considered 
 xl = (1-var)*setvals;
 xu = (1+var)*setvals;
 
@@ -26,15 +25,15 @@ xu(2) = var ;
 
 % Run simulation
 tic
+%Baseline Parameters
 parfor jj = 1:N
     rng(sum(100*clock)+pi*jj);
     % Randomly sample parameters within acceptable ranges
     Xs(jj,:) = 2*rand(1,Nparams) - 1;
     params = 1/2*(diag(xu - xl)*Xs(jj,:)' + (xu + xl));
-        
-    % Numerically solve 1D Vlasov-Poisson with baseline parameters
+    % Compute root of dispersion relation
     growth(jj) = dispersion_growthrate_V2TwoStream(params);
-    % Re-running solver if wrong roots (negative or large positive) found
+    % Remove unphysical roots if necessary
     while growth(jj) > 5 || growth(jj) < 0
         Xs(jj,:) = 2*rand(1,Nparams) - 1;
         params = 1/2*(diag(xu - xl)*Xs(jj,:)' + (xu + xl));
@@ -42,15 +41,16 @@ parfor jj = 1:N
     end 
 end
 
+%Perturbed Parameters 
 parfor jj = 1:N
     randparams = Xs(jj,:)';
     for kk = 1:Nparams
         I = eye(Nparams);                     
-        % Numerically solve 1D Vlasov-Poisson with perturbed parameters
+        % Compute root of dispersion relation
         xplus = randparams + h*I(:,kk);
         paramsplus = 1/2*(diag(xu - xl)*xplus + (xu + xl));
         growth_plus(jj, kk)= dispersion_growthrate_V2TwoStream(paramsplus);
-        % Re-running solver if wrong roots (negative or large positive) found
+        % Remove unphysical roots if necessary
         while growth_plus(jj,kk) >5 ||  growth_plus(jj,kk) <0
             xplus = randparams + h*I(:,kk);
             paramsplus = 1/2*(diag(xu - xl)*xplus + (xu + xl));
@@ -67,7 +67,7 @@ toc
 
 % Compute the weights and eigenvalues
 
-% Compute the singular value decomposition of the matrix C
+%Compute the singular value decomposition of the matrix C
 [U,S,V] = svd(1/sqrt(N)*grad_growth);
 w = U(:,1);
 w2 = U(:,2);
@@ -75,7 +75,7 @@ w2 = U(:,2);
 %Compute the eigenvalues of C
 evalues = diag(S.^2);
     
-% Find the difference of max and min grad_growth to check for errors
+%Find the difference of max and min grad_growth to check for errors
 diff_growth = max(max(grad_growth)) - min(min(grad_growth));
    
 %Save the trial data
